@@ -1,0 +1,10 @@
+{
+    "name": "laravel-grid-view-assets",
+    "private": true,
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "test": "node --check resources/js/grid-view.js && node --test tests/js/*.test.js"
+    }
+}

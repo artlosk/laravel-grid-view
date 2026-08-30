@@ -1,0 +1,69 @@
+{
+    "name": "artlosk/laravel-grid-view",
+    "description": "Server-rendered Laravel GridView with sortable columns, row actions, grouped rows and optional AJAX navigation.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/artlosk/laravel-grid-view",
+    "keywords": [
+        "laravel",
+        "grid",
+        "table",
+        "blade",
+        "datagrid"
+    ],
+    "authors": [
+        {
+            "name": "Artem Loskutnikov"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/artlosk/laravel-grid-view/issues",
+        "source": "https://github.com/artlosk/laravel-grid-view"
+    },
+    "funding": [
+        {
+            "type": "custom",
+            "url": "https://github.com/artlosk/laravel-grid-view#support"
+        }
+    ],
+
+    "require": {
+        "php": "^8.2",
+        "illuminate/contracts": "^11.0|^12.0|^13.0",
+        "illuminate/database": "^11.0|^12.0|^13.0",
+        "illuminate/http": "^11.0|^12.0|^13.0",
+        "illuminate/pagination": "^11.0|^12.0|^13.0",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/view": "^11.0|^12.0|^13.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "phpunit/phpunit": "^10.5|^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Artlosk\\LaravelGridView\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Artlosk\\LaravelGridView\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Artlosk\\LaravelGridView\\GridViewServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:coverage": "phpunit --coverage-text"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

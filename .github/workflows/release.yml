@@ -1,0 +1,183 @@
+name: Tests and release
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grid-view-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  php:
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            laravel: '11'
+            testbench: '^9.0'
+            phpunit: '^10.5'
+          - php: '8.2'
+            laravel: '12'
+            testbench: '^10.0'
+            phpunit: '^11.0'
+          - php: '8.3'
+            laravel: '13'
+            testbench: '^11.0'
+            phpunit: '^11.0'
+          - php: '8.5'
+            laravel: '13'
+            testbench: '^11.0'
+            phpunit: '^12.0'
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Check Composer file
+        run: composer validate --strict --no-check-lock
+
+      - name: Select test versions
+        run: >
+          composer require --dev
+          "orchestra/testbench:${{ matrix.testbench }}"
+          "phpunit/phpunit:${{ matrix.phpunit }}"
+          --no-interaction
+          --no-update
+
+      - name: Allow Laravel 11 packages with advisories
+        if: matrix.laravel == '11'
+        run: composer config policy.advisories.block false
+
+      - name: Install PHP packages
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Run PHP tests
+        run: composer test
+
+  javascript:
+    name: JavaScript / Node 22
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run JavaScript tests
+        run: npm test
+
+  composer-audit:
+    name: Composer security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+
+      - name: Install latest supported stack
+        run: |
+          composer require --dev \
+            "orchestra/testbench:^11.0" \
+            "phpunit/phpunit:^12.0" \
+            --no-interaction \
+            --no-update
+          composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Audit dependencies
+        run: |
+          set -euo pipefail
+          max_attempts=5
+          delay_seconds=20
+          attempt=1
+
+          while true; do
+            set +e
+            composer audit
+            status=$?
+            set -e
+
+            if [[ "$status" -eq 0 ]]; then
+              exit 0
+            fi
+
+            if [[ "$status" -ne 100 ]]; then
+              exit "$status"
+            fi
+
+            if [[ "$attempt" -ge "$max_attempts" ]]; then
+              echo "::error::Packagist security-advisories API unreachable after ${max_attempts} attempts"
+              exit 100
+            fi
+
+            echo "Packagist transport error (exit 100). Retry ${attempt}/${max_attempts} in ${delay_seconds}s..."
+            sleep "$delay_seconds"
+            attempt=$((attempt + 1))
+            delay_seconds=$((delay_seconds + 20))
+          done
+
+  release:
+    name: Create GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [php, javascript, composer-audit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check tag and create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Tag must look like v1.2.3"
+              exit 1
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "Release $TAG already exists"
+              exit 0
+          fi
+
+          gh release create "$TAG" \
+              --verify-tag \
+              --generate-notes \
+              --title "$TAG"
