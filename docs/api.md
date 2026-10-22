@@ -18,13 +18,26 @@ Main methods:
 - `paginate(int $perPage, string $pageParameter = 'page')`
 - `sortParameters(string $sort, string $direction)`
 - `defaultSort(string $column, string $direction = 'asc')`
+- `sort(string $column, string $direction = 'asc')`
 - `stablePagination(bool $enabled = true, string|Closure|null $tieBreaker = null)`
 - `rowExpander(RowExpander|Closure $expander)`
 - `rowClass(string|Closure|null $class)`
 - `emptyMessage(string $message)`
 - `ajax(bool $enabled = true)`
+- `sortQueryName()`
+- `directionQueryName()`
+- `sortableKeys()`
+- `sortedQuery()`
 - `records()`
 - `partialResponse()`
+
+`sort()` fixes the order. Sort parameters from the request are ignored, so use it when the URL must not change the order:
+
+```php
+$grid->sort('created_at', 'desc');
+```
+
+`sortQueryName()` and `directionQueryName()` return the names of the sort and direction query parameters. `sortableKeys()` returns the keys of visible sortable columns. `sortedQuery()` returns a query with the current sort applied, without pagination.
 
 Stable pagination adds the model key after the selected sort. Turn it off for a grouped query that cannot sort by that key:
 

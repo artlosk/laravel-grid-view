@@ -18,13 +18,26 @@ $grid = GridView::make(User::query(), $request, 'users-grid')
 - `paginate(int $perPage, string $pageParameter = 'page')`
 - `sortParameters(string $sort, string $direction)`
 - `defaultSort(string $column, string $direction = 'asc')`
+- `sort(string $column, string $direction = 'asc')`
 - `stablePagination(bool $enabled = true, string|Closure|null $tieBreaker = null)`
 - `rowExpander(RowExpander|Closure $expander)`
 - `rowClass(string|Closure|null $class)`
 - `emptyMessage(string $message)`
 - `ajax(bool $enabled = true)`
+- `sortQueryName()`
+- `directionQueryName()`
+- `sortableKeys()`
+- `sortedQuery()`
 - `records()`
 - `partialResponse()`
+
+`sort()` фиксирует порядок. Параметры сортировки из запроса игнорируются, поэтому используйте его, когда URL не должен менять порядок:
+
+```php
+$grid->sort('created_at', 'desc');
+```
+
+`sortQueryName()` и `directionQueryName()` возвращают имена query-параметров сортировки и направления. `sortableKeys()` возвращает ключи видимых колонок с сортировкой. `sortedQuery()` возвращает запрос с текущей сортировкой без пагинации.
 
 Для стабильной пагинации после выбранной сортировки добавляется ключ модели. Для группового запроса его можно отключить:
 
