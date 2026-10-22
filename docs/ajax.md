@@ -32,7 +32,7 @@ if (GridRequest::wantsPartial($request)) {
 </form>
 ```
 
-The form must use GET and point to an AJAX grid ID.
+The form must use GET and point to an AJAX grid ID. If the form does not send the sort and direction parameters, the current sort from the URL is kept.
 
 ## Several grids
 

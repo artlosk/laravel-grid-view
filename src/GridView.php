@@ -36,6 +36,10 @@ class GridView implements Htmlable
 
     protected string $defaultDirection = 'asc';
 
+    protected ?string $orderedColumn = null;
+
+    protected ?string $orderedDirection = null;
+
     protected bool $stablePagination;
 
     protected string|Closure|null $tieBreaker = null;
@@ -146,10 +150,29 @@ class GridView implements Htmlable
         return $this;
     }
 
+    public function sortQueryName(): string
+    {
+        return $this->sortParameter;
+    }
+
+    public function directionQueryName(): string
+    {
+        return $this->directionParameter;
+    }
+
     public function defaultSort(string $column, string $direction = 'asc'): static
     {
         $this->defaultSort = $column;
         $this->defaultDirection = $this->sortDirection($direction);
+        $this->paginator = null;
+
+        return $this;
+    }
+
+    public function sort(string $column, string $direction = 'asc'): static
+    {
+        $this->orderedColumn = $column;
+        $this->orderedDirection = $this->sortDirection($direction);
         $this->paginator = null;
 
         return $this;
@@ -290,14 +313,33 @@ class GridView implements Htmlable
             ->values();
     }
 
+    /**
+     * @return list<string>
+     */
+    public function sortableKeys(): array
+    {
+        return $this->visibleColumns()
+            ->filter(fn (Column $column) => $column->isSortable())
+            ->map(fn (Column $column) => $column->key())
+            ->values()
+            ->all();
+    }
+
+    public function sortedQuery(): Builder
+    {
+        $query = clone $this->query;
+        $this->applySorting($query);
+
+        return $query;
+    }
+
     public function records(): LengthAwarePaginator
     {
         if ($this->paginator) {
             return $this->paginator;
         }
 
-        $query = clone $this->query;
-        $this->applySorting($query);
+        $query = $this->sortedQuery();
 
         $this->paginator = $query
             ->paginate(
@@ -336,11 +378,19 @@ class GridView implements Htmlable
 
     public function requestedSort(): ?string
     {
+        if ($this->orderedColumn) {
+            return $this->orderedColumn;
+        }
+
         return $this->request->string($this->sortParameter)->toString() ?: $this->defaultSort;
     }
 
     public function requestedDirection(): string
     {
+        if ($this->orderedDirection) {
+            return $this->orderedDirection;
+        }
+
         $direction = $this->request->string($this->directionParameter)->toString();
 
         return $this->sortDirection($direction ?: $this->defaultDirection);

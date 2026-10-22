@@ -184,8 +184,16 @@
             formData.append(event.submitter.name, event.submitter.value);
         }
 
+        var params = new URLSearchParams(formData);
+        var currentParams = new URL(window.location.href).searchParams;
+        [grid.dataset.gridViewSortParameter, grid.dataset.gridViewDirectionParameter].forEach(function (name) {
+            if (name && !params.has(name) && currentParams.has(name)) {
+                params.set(name, currentParams.get(name));
+            }
+        });
+
         var url = new URL(form.action || window.location.href, window.location.href);
-        url.search = new URLSearchParams(formData).toString();
+        url.search = params.toString();
 
         event.preventDefault();
         loadGrid(grid, url.toString(), true);

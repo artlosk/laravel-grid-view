@@ -39,7 +39,7 @@ class GridViewTest extends TestCase
                 Column::make('rank'),
             ]);
 
-        $this->assertSame(['Charlie', 'Bob', 'Alice'], $grid->records()->pluck('name')->all());
+        $this->assertSame(['Charlie', 'Bob', 'Alice'], $this->names($grid));
 
         $unlisted = GridView::make(
             GridRecord::query()->orderBy('rank'),
@@ -49,7 +49,7 @@ class GridViewTest extends TestCase
             Column::make('rank'),
         ]);
 
-        $this->assertSame(['Bob', 'Charlie', 'Alice'], $unlisted->records()->pluck('name')->all());
+        $this->assertSame(['Bob', 'Charlie', 'Alice'], $this->names($unlisted));
 
         $hidden = GridView::make(
             GridRecord::query()->orderBy('rank'),
@@ -58,7 +58,26 @@ class GridViewTest extends TestCase
             Column::make('name')->sortable()->visible(false),
         ]);
 
-        $this->assertSame(['Bob', 'Charlie', 'Alice'], $hidden->records()->pluck('name')->all());
+        $this->assertSame(['Bob', 'Charlie', 'Alice'], $this->names($hidden));
+    }
+
+    public function test_sorted_query_reads_the_request_and_lists_sortable_keys(): void
+    {
+        $grid = GridView::make(
+            GridRecord::query(),
+            Request::create('/records', 'GET', [
+                'sort_by' => 'name',
+                'sort_direction' => 'desc',
+            ]),
+        )
+            ->columns([
+                Column::make('name')->sortable(),
+                Column::make('rank'),
+            ])
+            ->defaultSort('id', 'asc');
+
+        $this->assertSame(['name'], $grid->sortableKeys());
+        $this->assertSame(['Charlie', 'Bob', 'Alice'], $grid->sortedQuery()->pluck('name')->all());
     }
 
     public function test_it_supports_custom_sort_closures_and_pagination(): void
@@ -74,7 +93,7 @@ class GridViewTest extends TestCase
             ])
             ->paginate(2);
 
-        $this->assertSame(['Alice', 'Bob'], $grid->records()->pluck('name')->all());
+        $this->assertSame(['Alice', 'Bob'], $this->names($grid));
         $this->assertSame(3, $grid->records()->total());
 
         $secondPage = GridView::make(
@@ -91,7 +110,7 @@ class GridViewTest extends TestCase
             ])
             ->paginate(2);
 
-        $this->assertSame(['Charlie'], $secondPage->records()->pluck('name')->all());
+        $this->assertSame(['Charlie'], $this->names($secondPage));
     }
 
     public function test_it_supports_mapped_columns_default_sort_and_query_preservation(): void
@@ -111,7 +130,7 @@ class GridViewTest extends TestCase
             ->defaultSort('display_name', 'desc');
 
         $this->assertSame('asc', $grid->requestedDirection());
-        $this->assertSame(['Alice', 'Bob'], $grid->records()->pluck('name')->all());
+        $this->assertSame(['Alice', 'Bob'], $this->names($grid));
 
         $url = $grid->sortUrl(Column::make('rank')->sortable());
         $this->assertStringContainsString('filter=active', $url);
@@ -137,8 +156,8 @@ class GridViewTest extends TestCase
             ->columns([Column::make('rank')->sortable()])
             ->paginate(1);
 
-        $this->assertSame('Bob', $firstPage->records()->first()->name);
-        $this->assertSame('Dave', $secondPage->records()->first()->name);
+        $this->assertSame('Bob', $firstPage->records()->items()[0]->name);
+        $this->assertSame('Dave', $secondPage->records()->items()[0]->name);
     }
 
     public function test_query_configuration_invalidates_cached_records(): void
@@ -149,11 +168,11 @@ class GridViewTest extends TestCase
             ])
             ->paginate(1);
 
-        $this->assertSame('Charlie', $grid->records()->first()->name);
+        $this->assertSame('Charlie', $grid->records()->items()[0]->name);
 
         $grid->defaultSort('name')->paginate(2);
 
-        $this->assertSame(['Alice', 'Bob'], $grid->records()->pluck('name')->all());
+        $this->assertSame(['Alice', 'Bob'], $this->names($grid));
         $this->assertSame(2, $grid->records()->perPage());
     }
 
@@ -319,5 +338,10 @@ class GridViewTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         GridView::make(GridRecord::query(), Request::create('/records'), 'invalid grid');
+    }
+
+    private function names(GridView $grid): array
+    {
+        return collect($grid->records()->items())->pluck('name')->all();
     }
 }

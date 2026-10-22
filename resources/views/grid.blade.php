@@ -1,4 +1,5 @@
 @php
+    /** @var \Artlosk\LaravelGridView\GridView $grid */
     $columns = $grid->visibleColumns();
     $records = $grid->records();
 @endphp
@@ -12,6 +13,8 @@
         data-grid-view-id="{{ $grid->id() }}"
         data-grid-view-partial-header="{{ $grid->partialHeader() }}"
         data-grid-view-partial-id-header="{{ $grid->partialIdHeader() }}"
+        data-grid-view-sort-parameter="{{ $grid->sortQueryName() }}"
+        data-grid-view-direction-parameter="{{ $grid->directionQueryName() }}"
     @endif
 >
     <div class="{{ $grid->tableWrapperClassName() }}">
