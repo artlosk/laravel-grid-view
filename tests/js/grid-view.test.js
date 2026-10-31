@@ -11,8 +11,7 @@ function createGrid(id) {
     return {
         dataset: {
             gridViewId: id,
-            gridViewPartialHeader: 'X-Grid-View-Partial',
-            gridViewPartialIdHeader: 'X-Grid-View-ID',
+            gridViewHeader: 'X-Grid-View',
         },
         getAttribute(name) {
             return attributes.get(name) ?? null;
@@ -43,6 +42,9 @@ function createHarness(grids) {
             const listeners = documentListeners.get(type) ?? [];
             listeners.push(listener);
             documentListeners.set(type, listeners);
+        },
+        removeEventListener(type, listener) {
+            documentListeners.set(type, (documentListeners.get(type) ?? []).filter((item) => item !== listener));
         },
         createRange() {
             return {
@@ -102,6 +104,12 @@ function createHarness(grids) {
         confirm() {
             return true;
         },
+        scrollY: 0,
+        innerHeight: 600,
+        scrollBy() {},
+        requestAnimationFrame: () => 1,
+        cancelAnimationFrame() {},
+        setTimeout: (callback) => callback(),
     };
 
     const context = vm.createContext({
@@ -133,7 +141,7 @@ function createHarness(grids) {
                 rejectRequest = reject;
             });
 
-            options.signal.addEventListener('abort', () => {
+            options.signal?.addEventListener('abort', () => {
                 const error = new Error('Aborted');
                 error.name = 'AbortError';
                 rejectRequest(error);
@@ -185,8 +193,7 @@ function createEvent(target) {
 
 function partialResponse(id, html = `<div data-grid-view-id="${id}"></div>`) {
     const headers = new Map([
-        ['X-Grid-View-Partial', '1'],
-        ['X-Grid-View-ID', id],
+        ['X-Grid-View', id],
         ['Content-Type', 'text/html; charset=UTF-8'],
     ]);
 
@@ -214,7 +221,7 @@ test('deduplicates the same pending URL per grid', () => {
     assert.equal(harness.fetchCalls.length, 1);
     assert.equal(grid.getAttribute('aria-busy'), 'true');
     assert.equal(
-        harness.fetchCalls[0].options.headers['X-Grid-View-ID'],
+        harness.fetchCalls[0].options.headers['X-Grid-View'],
         'users-grid',
     );
 });
@@ -248,7 +255,7 @@ test('ignores AJAX link clicks while the grid is busy', () => {
     const link = {
         href: 'https://example.test/records?page=2',
         closest(selector) {
-            if (selector === '.lgv-sort, [data-grid-view-pagination] a') {
+            if (selector === 'a[data-grid-view-link], [data-grid-view-pagination] a') {
                 return this;
             }
 
@@ -277,7 +284,7 @@ test('keeps target and download links on native navigation', () => {
             return name === 'download';
         },
         closest(selector) {
-            return selector === '.lgv-sort, [data-grid-view-pagination] a'
+            return selector === 'a[data-grid-view-link], [data-grid-view-pagination] a'
                 ? this
                 : grid;
         },
@@ -348,7 +355,7 @@ test('replaces a valid partial, preserves history state, and dispatches render e
             return false;
         },
         closest(selector) {
-            if (selector === '.lgv-sort, [data-grid-view-pagination] a') {
+            if (selector === 'a[data-grid-view-link], [data-grid-view-pagination] a') {
                 return this;
             }
 
@@ -380,4 +387,150 @@ test('falls back to full navigation for an invalid partial response', async () =
     await new Promise((done) => setImmediate(done));
 
     assert.deepEqual(harness.assignedUrls, ['https://example.test/records?page=1']);
+});
+
+test('accepts a full page that contains the grid', async () => {
+    const grid = createGrid('users-grid');
+    const harness = createHarness([grid]);
+
+    harness.dispatchWindow('popstate');
+    harness.fetchCalls[0].complete(partialResponse('users-grid', '<html><body><h1>Page</h1><div data-grid-view-id="users-grid"></div></body></html>'));
+    await new Promise((done) => setImmediate(done));
+
+    assert.equal(grid.replacedWith.dataset.gridViewId, 'users-grid');
+    assert.deepEqual(harness.assignedUrls, []);
+});
+
+function createReorderGrid(keys) {
+    const grid = createGrid('records');
+    const table = {
+        records: [],
+        get children() {
+            return this.records;
+        },
+        insertBefore(node, reference) {
+            this.records.splice(this.records.indexOf(node), 1);
+            this.records.splice(reference ? this.records.indexOf(reference) : this.records.length, 0, node);
+        },
+    };
+
+    grid.classList = { add() {}, remove() {} };
+    grid.dataset.gridViewReorderUrl = '/records/order';
+    grid.dataset.gridViewReorderMethod = 'PUT';
+    grid.querySelectorAll = () => table.records;
+    table.records = keys.map((key) => {
+        const record = {
+            dataset: { gridViewKey: key },
+            parentNode: table,
+            classList: { add() {}, remove() {} },
+            style: {},
+            // строки по 40px: первая с 0 до 40
+            offsetHeight: 40,
+            get offsetTop() {
+                return table.records.indexOf(record) * 40;
+            },
+            getBoundingClientRect: () => ({ top: record.offsetTop, height: 40 }),
+            matches: (selector) => selector === 'tbody[data-grid-view-key]',
+            get previousElementSibling() {
+                return table.records[table.records.indexOf(record) - 1] ?? null;
+            },
+            get nextElementSibling() {
+                return table.records[table.records.indexOf(record) + 1] ?? null;
+            },
+            get nextSibling() {
+                return this.nextElementSibling;
+            },
+        };
+        const parents = new Map([
+            ['[data-grid-view-handle]', null],
+            ['[data-grid-view-reorder-url]', grid],
+            ['tbody[data-grid-view-key]', record],
+        ]);
+
+        record.handle = {
+            focus() {},
+            closest: (selector) => (selector === '[data-grid-view-handle]' ? record.handle : parents.get(selector) ?? null),
+        };
+
+        return record;
+    });
+
+    return { grid, records: table.records, table };
+}
+
+function keyEvent(target, key) {
+    return { ...createEvent(target), key };
+}
+
+async function settle() {
+    for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+    }
+}
+
+test('arrow keys move a record and save the new order', async () => {
+    const { grid, records, table } = createReorderGrid(['1', '2', '3']);
+    const harness = createHarness([grid]);
+
+    harness.dispatchDocument('keydown', keyEvent(records[0].handle, 'ArrowDown'));
+    await settle();
+
+    assert.deepEqual(table.records.map((record) => record.dataset.gridViewKey), ['2', '1', '3']);
+    assert.equal(harness.fetchCalls.length, 1);
+    assert.equal(harness.fetchCalls[0].url, '/records/order');
+    assert.equal(harness.fetchCalls[0].options.method, 'PUT');
+    assert.deepEqual(JSON.parse(harness.fetchCalls[0].options.body), { ids: ['2', '1', '3'] });
+
+    harness.dispatchDocument('keydown', keyEvent(table.records[0].handle, 'ArrowUp'));
+    await settle();
+
+    assert.equal(harness.fetchCalls.length, 1, 'the first record cannot move up');
+});
+
+test('saves one order at a time and redraws the grid when saving fails', async () => {
+    const { grid, records } = createReorderGrid(['1', '2', '3']);
+    const [first] = records;
+    const harness = createHarness([grid]);
+
+    harness.dispatchDocument('keydown', keyEvent(first.handle, 'ArrowDown'));
+    harness.dispatchDocument('keydown', keyEvent(first.handle, 'ArrowDown'));
+    await settle();
+
+    assert.equal(harness.fetchCalls.length, 1, 'the second save waits for the first');
+
+    harness.fetchCalls[0].complete({ ok: true, status: 204 });
+    await settle();
+
+    assert.equal(harness.fetchCalls.length, 2);
+    assert.deepEqual(JSON.parse(harness.fetchCalls[1].options.body), { ids: ['2', '3', '1'] });
+    assert.ok(harness.dispatchedEvents.some((event) => event.type === 'grid-view:reordered'));
+
+    harness.fetchCalls[1].complete({ ok: false, status: 422 });
+    await settle();
+
+    assert.ok(harness.dispatchedEvents.some((event) => event.type === 'grid-view:reorder-failed'));
+    assert.equal(harness.fetchCalls[2].options.headers['X-Grid-View'], 'records');
+});
+
+test('the dragged record follows the pointer and takes the place of the record it passes', async () => {
+    const { grid, records, table } = createReorderGrid(['1', '2', '3']);
+    const [first] = records;
+    const harness = createHarness([grid]);
+    const pointer = (type, y, buttons = 1) => harness.dispatchDocument(type, { ...createEvent(first.handle), pointerId: 7, clientX: 10, clientY: y, buttons });
+
+    pointer('pointerdown', 20);
+    pointer('pointermove', 70);
+    assert.deepEqual(table.records.map((record) => record.dataset.gridViewKey), ['2', '1', '3']);
+    assert.equal(first.style.transform, 'translateY(10px)', 'the record stays under the pointer after taking a new place');
+    pointer('pointermove', 110);
+    harness.dispatchDocument('pointermove', { ...createEvent(first.handle), pointerId: 8, clientX: 10, clientY: 10, buttons: 1 });
+    await settle();
+
+    assert.deepEqual(table.records.map((record) => record.dataset.gridViewKey), ['2', '3', '1'], 'another pointer does not move the record');
+    assert.equal(harness.fetchCalls.length, 0, 'saves only when the record is dropped');
+
+    pointer('pointerup', 110, 0);
+    await settle();
+
+    assert.deepEqual(JSON.parse(harness.fetchCalls[0].options.body), { ids: ['2', '3', '1'] });
 });

@@ -2,255 +2,150 @@
 
 namespace Artlosk\LaravelGridView;
 
+use Artlosk\LaravelGridView\Columns\ActionColumn;
+use Artlosk\LaravelGridView\Columns\Column;
+use Artlosk\LaravelGridView\Columns\DataColumn;
+use Artlosk\LaravelGridView\Columns\ReorderColumn;
+use Artlosk\LaravelGridView\Columns\SerialColumn;
+use Artlosk\LaravelGridView\Contracts\RowExpander;
+use Artlosk\LaravelGridView\DataProviders\DataProvider;
+use Artlosk\LaravelGridView\Filters\Filter;
+use Artlosk\LaravelGridView\Filters\FilterValues;
+use Artlosk\LaravelGridView\Rows\ExpandedGroup;
+use Artlosk\LaravelGridView\Rows\ExpandedRow;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use InvalidArgumentException;
-use Artlosk\LaravelGridView\Columns\Column;
-use Artlosk\LaravelGridView\Contracts\RowExpander;
-use Artlosk\LaravelGridView\Rows\ExpandedGroup;
-use Artlosk\LaravelGridView\Support\EvaluatesClosures;
 
+/**
+ * A table of a data provider, like GridView::widget() in Yii2.
+ *
+ *     @grid([
+ *         'dataProvider' => $provider,
+ *         'columns' => [
+ *             'id',
+ *             'name:text:Name',
+ *             'created_at:datetime',
+ *             ['attribute' => 'status', 'view' => 'users.status'],
+ *             ['class' => 'actions', 'route' => 'users'],
+ *         ],
+ *     ])
+ *
+ * Options: dataProvider, columns, id, caption, emptyText, showFilters, ajax, rowExpander, rowClass, reorder.
+ */
 class GridView implements Htmlable
 {
-    use EvaluatesClosures;
+    protected const COLUMN_ALIASES = [
+        'data' => DataColumn::class,
+        'actions' => ActionColumn::class,
+        'serial' => SerialColumn::class,
+        'reorder' => ReorderColumn::class,
+    ];
+
+    protected const REORDER_OPTIONS = ['url', 'method', 'sort', 'key'];
+
+    protected static int $counter = 0;
+
+    protected static ?Closure $labelTranslator = null;
+
+    protected static ?string $partialId = null;
+
+    protected static ?string $partialHtml = null;
+
+    protected DataProvider $dataProvider;
+
+    protected string $id;
 
     /** @var list<Column> */
     protected array $columns = [];
 
-    protected ?LengthAwarePaginator $paginator = null;
+    protected string|Htmlable|null $caption = null;
 
-    protected int $perPage;
+    protected ?string $emptyText = null;
 
-    protected string $pageParameter;
+    protected bool $showFilters = true;
 
-    protected string $sortParameter;
-
-    protected string $directionParameter;
-
-    protected ?string $defaultSort = null;
-
-    protected string $defaultDirection = 'asc';
-
-    protected ?string $orderedColumn = null;
-
-    protected ?string $orderedDirection = null;
-
-    protected bool $stablePagination;
-
-    protected string|Closure|null $tieBreaker = null;
+    protected bool $ajax;
 
     protected RowExpander|Closure|null $rowExpander = null;
 
     protected string|Closure|null $rowClass = null;
 
-    protected string $emptyMessage;
+    /** @var array{url: string, method: string, sort: ?string, key: ?string}|null */
+    protected ?array $reorder = null;
 
-    protected string $tableClass;
-
-    protected string $gridClass;
-
-    protected string $tableWrapperClass;
-
-    protected string $paginationView;
-
-    protected ?string $paginationWrapperClass;
-
-    protected bool $ajax = false;
-
-    protected function __construct(
-        protected Builder $query,
-        protected Request $request,
-        protected string $id,
-    ) {
-        if (!preg_match('/^[A-Za-z][A-Za-z0-9_-]*$/D', $this->id)) {
-            throw new InvalidArgumentException(
-                'Grid ID must start with a letter and contain only letters, numbers, underscores, or hyphens.',
-            );
-        }
-
-        $this->perPage = max(1, config('grid-view.per_page', 20));
-        $this->stablePagination = config('grid-view.stable_pagination', true);
-        $this->pageParameter = $this->validatedParameterName(config('grid-view.page_parameter', 'page'));
-        $this->sortParameter = $this->validatedParameterName(config('grid-view.sort_parameter', 'sort_by'));
-        $this->directionParameter = $this->validatedParameterName(
-            config('grid-view.direction_parameter', 'sort_direction'),
-        );
-
-        if ($this->sortParameter === $this->directionParameter) {
-            throw new InvalidArgumentException('Sort and direction parameters must be different.');
-        }
-
-        $emptyMessage = config('grid-view.empty_message');
-        $this->emptyMessage = is_string($emptyMessage)
-            ? $emptyMessage
-            : __('grid-view::grid-view.empty');
-        $this->tableClass = config('grid-view.table_class', 'lgv-table');
-        $this->gridClass = config('grid-view.grid_class', 'lgv-grid');
-        $this->tableWrapperClass = config('grid-view.table_wrapper_class', 'lgv-table-wrap');
-        $this->paginationView = config('grid-view.pagination_view', 'grid-view::pagination');
-        $paginationWrapperClass = config('grid-view.pagination_wrapper_class');
-        $this->paginationWrapperClass = is_string($paginationWrapperClass) && $paginationWrapperClass !== ''
-            ? $paginationWrapperClass
-            : null;
-    }
-
-    public static function make(Builder $query, ?Request $request = null, string $id = 'grid-view'): static
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    public function __construct(array $config)
     {
-        return new static($query, $request ?? request(), $id);
+        if (!($config['dataProvider'] ?? null) instanceof DataProvider) {
+            throw new InvalidArgumentException('GridView needs a "dataProvider" option.');
+        }
+
+        $this->dataProvider = $config['dataProvider'];
+        $this->id = $config['id'] ?? 'grid'.self::$counter++;
+        $this->ajax = $config['ajax'] ?? (bool) config('grid-view.ajax', true);
+
+        if (!preg_match('/^[A-Za-z][A-Za-z0-9_-]*$/D', $this->id)) {
+            throw new InvalidArgumentException('Grid id must start with a letter and contain only letters, digits, "_" or "-".');
+        }
+
+        if (isset($config['reorder'])) {
+            $this->reorder = $this->reorderOptions($config['reorder']);
+        }
+
+        foreach (Arr::except($config, ['dataProvider', 'id', 'ajax', 'columns', 'reorder']) as $option => $value) {
+            if (!in_array($option, ['caption', 'emptyText', 'showFilters', 'rowExpander', 'rowClass'], true)) {
+                throw new InvalidArgumentException("Unknown GridView option [{$option}].");
+            }
+
+            $this->{$option} = $value;
+        }
+
+        foreach (array_values($config['columns'] ?? []) as $index => $column) {
+            $this->columns[] = $this->column($column, $index);
+        }
+
+        $hasHandle = array_filter($this->columns, static fn (Column $column): bool => $column instanceof ReorderColumn) !== [];
+
+        if ($this->reorder !== null && !$hasHandle) {
+            array_unshift($this->columns, new ReorderColumn([], $this, -1));
+        }
     }
 
     /**
-     * @param  list<Column>  $columns
+     * @param  array<string, mixed>  $config
      */
-    public function columns(array $columns): static
+    public static function widget(array $config): static
     {
-        if ($columns === [] || !array_is_list($columns)) {
-            throw new InvalidArgumentException('Grid columns must be a non-empty list.');
-        }
-
-        foreach ($columns as $column) {
-            if (!$column instanceof Column) {
-                throw new InvalidArgumentException('Every grid column must be a Column instance.');
-            }
-        }
-
-        $this->columns = $columns;
-        $this->paginator = null;
-
-        return $this;
+        return new static($config);
     }
 
-    public function paginate(int $perPage, string $pageParameter = 'page'): static
+    // Labels, filters, placeholders and empty text go through the translator: GridView::translateLabelsUsing(fn ($s) => __($s))
+    public static function translateLabelsUsing(?Closure $translator): void
     {
-        $this->perPage = max(1, $perPage);
-        $this->pageParameter = $this->validatedParameterName($pageParameter);
-        $this->paginator = null;
-
-        return $this;
+        self::$labelTranslator = $translator;
     }
 
-    public function sortParameters(string $sort, string $direction): static
+    public static function label(string $text): string
     {
-        $sort = $this->validatedParameterName($sort);
-        $direction = $this->validatedParameterName($direction);
-
-        if ($sort === $direction) {
-            throw new InvalidArgumentException('Sort and direction parameters must be different.');
-        }
-
-        $this->sortParameter = $sort;
-        $this->directionParameter = $direction;
-        $this->paginator = null;
-
-        return $this;
+        return self::$labelTranslator ? (string) (self::$labelTranslator)($text) : $text;
     }
 
-    public function sortQueryName(): string
+    // Partial response of an AJAX request: the middleware asks for a grid and takes its HTML
+    public static function capturePartial(?string $id): void
     {
-        return $this->sortParameter;
+        self::$partialId = $id;
+        self::$partialHtml = null;
     }
 
-    public function directionQueryName(): string
+    public static function capturedPartial(): ?string
     {
-        return $this->directionParameter;
-    }
-
-    public function defaultSort(string $column, string $direction = 'asc'): static
-    {
-        $this->defaultSort = $column;
-        $this->defaultDirection = $this->sortDirection($direction);
-        $this->paginator = null;
-
-        return $this;
-    }
-
-    public function sort(string $column, string $direction = 'asc'): static
-    {
-        $this->orderedColumn = $column;
-        $this->orderedDirection = $this->sortDirection($direction);
-        $this->paginator = null;
-
-        return $this;
-    }
-
-    public function stablePagination(
-        bool $enabled = true,
-        string|Closure|null $tieBreaker = null,
-    ): static
-    {
-        $this->stablePagination = $enabled;
-        $this->tieBreaker = $tieBreaker;
-        $this->paginator = null;
-
-        return $this;
-    }
-
-    public function rowExpander(RowExpander|Closure $expander): static
-    {
-        $this->rowExpander = $expander;
-
-        return $this;
-    }
-
-    public function rowClass(string|Closure|null $class): static
-    {
-        $this->rowClass = $class;
-
-        return $this;
-    }
-
-    public function emptyMessage(string $message): static
-    {
-        $this->emptyMessage = $message;
-
-        return $this;
-    }
-
-    public function tableClass(string $class): static
-    {
-        $this->tableClass = $class;
-
-        return $this;
-    }
-
-    public function gridClass(string $class): static
-    {
-        $this->gridClass = $class;
-
-        return $this;
-    }
-
-    public function tableWrapperClass(string $class): static
-    {
-        $this->tableWrapperClass = $class;
-
-        return $this;
-    }
-
-    public function paginationView(string $view): static
-    {
-        $this->paginationView = $view;
-
-        return $this;
-    }
-
-    public function paginationWrapperClass(?string $class): static
-    {
-        $this->paginationWrapperClass = $class !== '' ? $class : null;
-
-        return $this;
-    }
-
-    public function ajax(bool $enabled = true): static
-    {
-        $this->ajax = $enabled;
-
-        return $this;
+        return self::$partialHtml;
     }
 
     public function id(): string
@@ -258,193 +153,171 @@ class GridView implements Htmlable
         return $this->id;
     }
 
+    public function dataProvider(): DataProvider
+    {
+        return $this->dataProvider;
+    }
+
+    /** @return list<Column> */
+    public function columns(): array
+    {
+        return array_values(array_filter($this->columns, static fn (Column $column): bool => $column->isVisible()));
+    }
+
+    /** @return list<Filter> */
+    public function filters(): array
+    {
+        return $this->showFilters ? $this->dataProvider->filterDefinitions() : [];
+    }
+
+    public function filterValues(): FilterValues
+    {
+        return $this->dataProvider->filters();
+    }
+
+    public function records(): LengthAwarePaginator
+    {
+        return $this->dataProvider->paginator();
+    }
+
+    public function expandedGroup(mixed $model): ExpandedGroup
+    {
+        $group = $this->rowExpander instanceof RowExpander
+            ? $this->rowExpander->expand($model)
+            : ($this->rowExpander instanceof Closure ? ($this->rowExpander)($model) : null);
+
+        return $group ?? ExpandedGroup::single();
+    }
+
+    public function rowClass(mixed $model): ?string
+    {
+        return $this->rowClass instanceof Closure ? ($this->rowClass)($model) : $this->rowClass;
+    }
+
+    /**
+     * Columns with a cell in this row of a group: shared cells exist only in the first row
+     *
+     * @return list<Column>
+     */
+    public function rowColumns(ExpandedGroup $group, int $rowIndex): array
+    {
+        return array_values(array_filter(
+            $this->columns(),
+            static fn (Column $column): bool => $rowIndex === 0 || !$group->shares($column->key()),
+        ));
+    }
+
+    /** @return array<string, mixed> */
+    public function cellAttributes(Column $column, mixed $model, ExpandedRow $row, ExpandedGroup $group): array
+    {
+        $attributes = $column->contentAttributes($model, $row);
+
+        if ($group->rowCount() > 1 && $group->shares($column->key())) {
+            $attributes['rowspan'] = $group->rowCount();
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * Records can be dragged: the "reorder" option is set, every record is on this page,
+     * and the grid shows the order being edited (its "sort" attribute ascending, or any order without one)
+     */
+    public function isReorderable(): bool
+    {
+        if ($this->reorder === null || $this->records()->hasPages()) {
+            return false;
+        }
+
+        $sort = $this->dataProvider->sort();
+
+        return $this->reorder['sort'] === null || ($sort->column() === $this->reorder['sort'] && $sort->direction() === 'asc');
+    }
+
+    public function reorderUrl(): ?string
+    {
+        return $this->reorder['url'] ?? null;
+    }
+
+    public function reorderMethod(): string
+    {
+        return $this->reorder['method'] ?? 'POST';
+    }
+
+    // Key sent in the new order: the "key" path of the reorder option, the primary key of a model or "id"
+    public function recordKey(mixed $model): mixed
+    {
+        if ($this->reorder['key'] ?? null) {
+            return data_get($model, $this->reorder['key']);
+        }
+
+        return $model instanceof Model ? $model->getKey() : data_get($model, 'id');
+    }
+
+    // Heading above the table: a string goes through the label translator, Htmlable is printed as is
+    public function caption(): string|Htmlable|null
+    {
+        return is_string($this->caption) ? self::label($this->caption) : $this->caption;
+    }
+
+    public function emptyText(): string
+    {
+        return $this->emptyText === null ? __('grid-view::grid-view.empty') : self::label($this->emptyText);
+    }
+
     public function isAjax(): bool
     {
         return $this->ajax;
     }
 
-    public function partialHeader(): string
+    public function sortUrl(Column $column): string
     {
-        return $this->validatedHeaderName(config('grid-view.partial_header', 'X-Grid-View-Partial'));
+        return $this->url([
+            ...Arr::except($this->query(), [$this->pageParameter()]),
+            ...$this->dataProvider->sort()->linkQuery($column->key()),
+        ]);
     }
 
-    public function partialIdHeader(): string
+    /** @return 'asc'|'desc'|null */
+    public function sortDirection(Column $column): ?string
     {
-        return $this->validatedHeaderName(config('grid-view.partial_id_header', 'X-Grid-View-ID'));
-    }
-
-    public function tableClassName(): string
-    {
-        return $this->tableClass;
-    }
-
-    public function gridClassName(): string
-    {
-        return $this->gridClass;
-    }
-
-    public function tableWrapperClassName(): string
-    {
-        return $this->tableWrapperClass;
-    }
-
-    public function paginationViewName(): string
-    {
-        return $this->paginationView;
-    }
-
-    public function paginationWrapperClassName(): ?string
-    {
-        return $this->paginationWrapperClass;
-    }
-
-    public function emptyMessageText(): string
-    {
-        return $this->emptyMessage;
+        return $column->isSortable() ? $this->dataProvider->sort()->directionOf($column->key()) : null;
     }
 
     /**
-     * @return Collection<int, Column>
+     * Sort parameters kept when the filter form is submitted or reset
+     *
+     * @return array<string, string>
      */
-    public function visibleColumns(): Collection
+    public function sortQuery(): array
     {
-        return collect($this->columns)
-            ->filter(fn (Column $column) => $column->isVisible($this))
-            ->values();
-    }
+        $sort = $this->dataProvider->sort();
 
-    /**
-     * @return list<string>
-     */
-    public function sortableKeys(): array
-    {
-        return $this->visibleColumns()
-            ->filter(fn (Column $column) => $column->isSortable())
-            ->map(fn (Column $column) => $column->key())
-            ->values()
-            ->all();
-    }
-
-    public function sortedQuery(): Builder
-    {
-        $query = clone $this->query;
-        $this->applySorting($query);
-
-        return $query;
-    }
-
-    public function records(): LengthAwarePaginator
-    {
-        if ($this->paginator) {
-            return $this->paginator;
-        }
-
-        $query = $this->sortedQuery();
-
-        $this->paginator = $query
-            ->paginate(
-                $this->perPage,
-                ['*'],
-                $this->pageParameter,
-                max(1, $this->request->integer($this->pageParameter, 1)),
-            )
-            ->appends($this->navigationQuery());
-
-        return $this->paginator;
-    }
-
-    public function expandedGroup(object $record): ExpandedGroup
-    {
-        if ($this->rowExpander instanceof RowExpander) {
-            return $this->rowExpander->expand($record);
-        }
-
-        return $this->evaluate($this->rowExpander, $record) ?? ExpandedGroup::single();
-    }
-
-    public function recordClass(object $record): ?string
-    {
-        return $this->evaluate($this->rowClass, $record);
-    }
-
-    public function sortColumn(): ?Column
-    {
-        $key = $this->requestedSort();
-
-        return $this->visibleColumns()->first(
-            fn (Column $column) => $column->key() === $key && $column->isSortable(),
+        return array_filter(
+            Arr::only($this->query(), [$sort->sortParameter(), $sort->directionParameter()]),
+            'is_string',
         );
     }
 
-    public function requestedSort(): ?string
+    public function filterAction(): string
     {
-        if ($this->orderedColumn) {
-            return $this->orderedColumn;
-        }
-
-        return $this->request->string($this->sortParameter)->toString() ?: $this->defaultSort;
+        return $this->dataProvider->request()->url();
     }
 
-    public function requestedDirection(): string
+    public function resetUrl(): string
     {
-        if ($this->orderedDirection) {
-            return $this->orderedDirection;
-        }
-
-        $direction = $this->request->string($this->directionParameter)->toString();
-
-        return $this->sortDirection($direction ?: $this->defaultDirection);
-    }
-
-    public function sortUrl(Column $column): string
-    {
-        $direction = $this->requestedSort() === $column->key() && $this->requestedDirection() === 'asc'
-            ? 'desc'
-            : 'asc';
-
-        $query = array_merge($this->navigationQuery(), [
-            $this->sortParameter => $column->key(),
-            $this->directionParameter => $direction,
-            $this->pageParameter => 1,
-        ]);
-
-        return $this->request->url().'?'.http_build_query($query);
-    }
-
-    public function sortIndicator(Column $column): ?string
-    {
-        if ($this->requestedSort() !== $column->key()) {
-            return null;
-        }
-
-        return $this->requestedDirection() === 'asc' ? 'asc' : 'desc';
-    }
-
-    public function partialResponse(): Response
-    {
-        $partialHeader = $this->partialHeader();
-        $partialIdHeader = $this->partialIdHeader();
-
-        if (strcasecmp($partialHeader, $partialIdHeader) === 0) {
-            throw new InvalidArgumentException('Partial marker and grid ID headers must be different.');
-        }
-
-        return response($this->render())
-            ->withHeaders([
-                $partialHeader => '1',
-                $partialIdHeader => $this->id,
-                'Vary' => implode(', ', [
-                    $partialHeader,
-                    $partialIdHeader,
-                    'X-Requested-With',
-                ]),
-                'Cache-Control' => 'private, no-store',
-            ]);
+        return $this->url($this->sortQuery());
     }
 
     public function render(): string
     {
-        return view('grid-view::grid', ['grid' => $this])->render();
+        $html = view('grid-view::grid', ['grid' => $this])->render();
+
+        if (self::$partialId === $this->id) {
+            self::$partialHtml = $html;
+        }
+
+        return $html;
     }
 
     public function toHtml(): string
@@ -452,65 +325,70 @@ class GridView implements Htmlable
         return $this->render();
     }
 
-    protected function applySorting(Builder $query): void
+    /**
+     * @param  string|array<string, mixed>|Column  $config
+     */
+    protected function column(string|array|Column $config, int $index): Column
     {
-        $column = $this->sortColumn();
-
-        if ($column) {
-            $query->reorder();
-            $column->applySort($query, $this->requestedDirection());
+        if ($config instanceof Column) {
+            return $config;
         }
 
-        if (!$this->stablePagination) {
-            return;
+        if (is_string($config)) {
+            $config = DataColumn::parse($config);
         }
 
-        $tieDirection = $column ? $this->requestedDirection() : 'asc';
+        $class = $config['class'] ?? DataColumn::class;
+        $class = self::COLUMN_ALIASES[$class] ?? $class;
 
-        if ($this->tieBreaker instanceof Closure) {
-            ($this->tieBreaker)($query, $tieDirection);
-
-            return;
+        if (!is_string($class) || !is_subclass_of($class, Column::class)) {
+            throw new InvalidArgumentException('Grid column class must extend '.Column::class.'.');
         }
 
-        $query->orderBy(
-            $this->tieBreaker ?? $query->getModel()->getQualifiedKeyName(),
-            $tieDirection,
-        );
-    }
-
-    protected function sortDirection(string $direction): string
-    {
-        return strtolower($direction) === 'desc' ? 'desc' : 'asc';
+        return new $class(Arr::except($config, ['class']), $this, $index);
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{url: string, method: string, sort: ?string, key: ?string}
      */
-    protected function navigationQuery(): array
+    protected function reorderOptions(mixed $options): array
     {
-        $query = $this->request->query();
+        $options = is_string($options) ? ['url' => $options] : $options;
 
-        unset($query['_grid_partial'], $query['_grid_id']);
-
-        return $query;
-    }
-
-    protected function validatedParameterName(string $name): string
-    {
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/D', $name)) {
-            throw new InvalidArgumentException("Invalid grid query parameter name [{$name}].");
+        if (!is_array($options) || !is_string($options['url'] ?? null)) {
+            throw new InvalidArgumentException('GridView "reorder" needs a "url".');
         }
 
-        return $name;
-    }
-
-    protected function validatedHeaderName(string $name): string
-    {
-        if (!preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $name)) {
-            throw new InvalidArgumentException("Invalid grid header name [{$name}].");
+        foreach (array_keys($options) as $key) {
+            if (!in_array($key, self::REORDER_OPTIONS, true)) {
+                throw new InvalidArgumentException("Unknown reorder option [{$key}].");
+            }
         }
 
-        return $name;
+        return [
+            'url' => $options['url'],
+            'method' => strtoupper($options['method'] ?? 'POST'),
+            'sort' => $options['sort'] ?? null,
+            'key' => $options['key'] ?? null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function query(): array
+    {
+        return $this->dataProvider->request()->query();
+    }
+
+    protected function pageParameter(): string
+    {
+        return config('grid-view.page_parameter', 'page');
+    }
+
+    /** @param  array<string, mixed>  $query */
+    protected function url(array $query): string
+    {
+        $url = $this->dataProvider->request()->url();
+
+        return $query === [] ? $url : $url.'?'.http_build_query($query);
     }
 }

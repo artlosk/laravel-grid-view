@@ -2,25 +2,58 @@
 
 [English version](customization.md)
 
-В пакете есть небольшая стандартная тема. Все её селекторы начинаются с `lgv-`.
+## Классы
 
-## Bootstrap
+Классы разметки задаются в `config/grid-view.php`:
 
 ```php
-$grid
-    ->gridClass('users-grid')
-    ->tableWrapperClass('table-responsive')
-    ->tableClass('table table-striped table-hover')
-    ->paginationView('pagination::bootstrap-5')
-    ->paginationWrapperClass('d-flex justify-content-end');
+'grid_class' => 'lgv-grid',
+'filters_class' => 'lgv-filters',           // форма фильтров
+'filter_field_class' => 'lgv-filter',       // обёртка поля; у фильтра — ->fieldClass('col-md-4')
+'filter_actions_class' => 'lgv-filter-actions',
+'apply_button_class' => 'lgv-button lgv-button-primary',
+'reset_button_class' => 'lgv-button',
+'table_container_class' => 'lgv-table-container',
+'caption_class' => 'lgv-caption',
+'table_wrapper_class' => 'lgv-table-wrap',
+'table_class' => 'lgv-table',
+'pagination_view' => 'grid-view::pagination',
+'pagination_wrapper_class' => 'lgv-pagination-wrap',
+'link_attributes' => [],                    // атрибуты ссылок колонок с 'url'
+'reorder_handle_class' => 'lgv-reorder-handle',
+'reorder_icon' => null,                     // например 'fas fa-grip-vertical' вместо значка ⠿
 ```
 
-Если в `tableClass()` нет `lgv-table`, пакет не задаёт таблице отступы, границы и выравнивание.
+Пример для Bootstrap:
 
-## Цвета
+```php
+'filters_class' => 'row align-items-end mb-3',
+'filter_field_class' => 'col-md-3',
+'table_wrapper_class' => 'table-responsive',
+'table_class' => 'table table-hover',
+'pagination_view' => 'pagination::bootstrap-5',
+```
+
+## Кнопки действий
+
+```php
+'action_template' => '{view} {update} {delete}',
+'action_column_class' => 'lgv-actions',
+'confirm_attribute' => 'data-grid-confirm',
+'action_buttons' => [
+    'view' => ['route' => 'show', 'icon' => 'fas fa-eye', 'attributes' => ['class' => 'btn btn-sm']],
+    'update' => ['route' => 'edit', 'icon' => 'fas fa-pen'],
+    'delete' => ['route' => 'destroy', 'method' => 'DELETE', 'icon' => 'fas fa-trash', 'confirm' => true],
+    'restore' => ['route' => 'restore', 'method' => 'POST', 'icon' => 'fas fa-undo', 'label' => 'Восстановить'],
+],
+```
+
+Без `icon` кнопка показывает текст. `confirm: true` выводит стандартный вопрос, а строка — свой текст.
+
+## Цвета стандартной темы
 
 ```css
-.users-grid {
+.lgv-grid {
     --lgv-border: #dee2e6;
     --lgv-muted: #6c757d;
     --lgv-surface: transparent;
@@ -28,14 +61,27 @@ $grid
 }
 ```
 
-## Публикация файлов
+## Шаблоны
 
 ```bash
 php artisan vendor:publish --tag=grid-view-views
-php artisan vendor:publish --tag=grid-view-translations
-php artisan vendor:publish --tag=grid-view-assets
 ```
 
-После обновления используйте `--force`, только если опубликованные копии можно заменить.
+Можно переопределить:
+- `grid.blade.php` — грид целиком;
+- `filters.blade.php` — форма фильтров;
+- `filters/{text,select,date}.blade.php` — поля;
+- `actions/{link,form}.blade.php` — кнопки;
+- `pagination.blade.php`.
 
-Классы кнопок задаются через `Action::attributes()`. Для обёртки формы используйте `Action::formAttributes()`.
+Обычно хватает конфига и шаблонов полей.
+
+## Свой тип колонки
+
+```php
+use Artlosk\LaravelGridView\Columns\DataColumn;
+
+class MoneyColumn extends DataColumn { /* ... */ }
+
+// ['class' => MoneyColumn::class, 'attribute' => 'amount']
+```

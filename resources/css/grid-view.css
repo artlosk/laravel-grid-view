@@ -6,9 +6,97 @@
     color: inherit;
 }
 
+.lgv-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+}
+
+.lgv-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 10rem;
+}
+
+.lgv-filter label {
+    color: var(--lgv-muted, #6b7280);
+    font-size: 0.875rem;
+}
+
+.lgv-filter input,
+.lgv-filter select {
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--lgv-border, #d9dee3);
+    border-radius: 0.25rem;
+    font: inherit;
+}
+
+.lgv-filter-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.lgv-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--lgv-border, #d9dee3);
+    border-radius: 0.25rem;
+    background: var(--lgv-surface, #ffffff);
+    color: inherit;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.lgv-button-primary {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #ffffff;
+}
+
 [data-grid-view-ajax][aria-busy="true"] {
     opacity: 0.65;
     pointer-events: none;
+}
+
+.lgv-reorder-handle {
+    padding: 0.25rem 0.375rem;
+    border: 0;
+    background: transparent;
+    color: var(--lgv-muted, #6b7280);
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+}
+
+.lgv-reorder-handle:active {
+    cursor: grabbing;
+}
+
+/* the dragged record is lifted above the others and follows the pointer */
+.lgv-dragging {
+    position: relative;
+    z-index: 2;
+    filter: drop-shadow(0 6px 14px rgba(15, 23, 42, 0.18));
+}
+
+.lgv-dragging td {
+    background: var(--lgv-surface, #ffffff);
+}
+
+.lgv-reordering,
+.lgv-reordering * {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.lgv-caption {
+    padding: 0.625rem 0.75rem;
+    font-weight: 600;
 }
 
 .lgv-table-wrap {
@@ -46,7 +134,11 @@
     color: var(--lgv-muted, #6b7280);
 }
 
-.lgv-actions,
+.lgv-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
 .lgv-action-form {
     display: inline-flex;
     gap: 0.375rem;

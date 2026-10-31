@@ -2,82 +2,58 @@
 
 [English version](ajax.md)
 
-AJAX можно не подключать. Без JavaScript сортировка и пагинация работают как обычные ссылки.
+При `ajax => true` (по умолчанию) сортировка, страницы и форма фильтров перерисовывают только грид.
+
+## Как это работает
+
+1. JS пакета перехватывает клики по заголовкам, по пагинации и по «Сбросить», а также отправку формы фильтров.
+2. Он запрашивает тот же адрес с заголовком `X-Grid-View: <id грида>`.
+3. Страница рендерится как обычно. Промежуточный слой `PartialGridResponse` (его пакет сам добавляет в группу `web`) находит грид с этим id и отдаёт только его HTML.
+4. JS заменяет грид, обновляет адрес в браузере (`history.pushState`) и отправляет событие `grid-view:rendered` с `detail: { id, grid, url }`.
+
+Контроллеру ничего делать не нужно: он возвращает обычный view.
+
+Если ответ без нужного грида (редирект, ошибка, другая страница), браузер просто переходит по адресу. Кнопка «Назад» перерисовывает гриды по `popstate`.
 
 ## Подключение
 
-```php
-$grid->ajax();
-```
-
 ```blade
-<link rel="stylesheet" href="{{ asset('vendor/grid-view/grid-view.css') }}">
 <script src="{{ asset('vendor/grid-view/grid-view.js') }}" defer></script>
 ```
 
-Контроллер должен вернуть запрошенную таблицу:
+или через Vite: `import '…/vendor/artlosk/laravel-grid-view/resources/js/grid-view.js'`.
 
-```php
-if (GridRequest::wantsPartial($request)) {
-    return $grid->partialResponse();
-}
-```
+## Внешняя форма фильтров
 
-## Фильтры
+Форма вне грида (например, общая для нескольких страниц) связывается с ним атрибутом:
 
 ```blade
-<form method="GET" data-grid-view-filter="users-grid">
-    <input name="search" value="{{ request('search') }}">
-    <button type="submit">Найти</button>
+<form method="GET" action="{{ route('orders.index') }}" data-grid-view-filter="orders-grid">
+    …
 </form>
+
+@grid(['id' => 'orders-grid', 'dataProvider' => $provider, 'showFilters' => false, 'columns' => [...]])
 ```
 
-Форма должна использовать GET и содержать ID AJAX-таблицы. Если форма не передаёт параметры сортировки и направления, текущая сортировка из URL сохраняется.
+При отправке текущая сортировка сохраняется.
 
-## Несколько таблиц
+## Повторная инициализация
 
-Задайте каждой таблице свой ID и свои query-параметры:
-
-```php
-$usersGrid
-    ->sortParameters('users_sort', 'users_direction')
-    ->paginate(20, 'users_page');
-
-$ordersGrid
-    ->sortParameters('orders_sort', 'orders_direction')
-    ->paginate(20, 'orders_page');
-```
-
-Возвращайте таблицу, указанную в запросе:
-
-```php
-if (GridRequest::targetsGrid($request, $usersGrid->id())) {
-    return $usersGrid->partialResponse();
-}
-
-if (GridRequest::targetsGrid($request, $ordersGrid->id())) {
-    return $ordersGrid->partialResponse();
-}
-```
-
-## После обновления
-
-Скрипт отправляет событие `grid-view:rendered`:
+После перерисовки новые элементы (например, select с плагином) можно оживить в одном месте:
 
 ```js
-document.addEventListener('grid-view:rendered', (event) => {
-    initRowButtons(event.detail.grid);
-});
+document.addEventListener('grid-view:rendered', (event) => initPlugins(event.detail.grid));
 ```
 
-В `event.detail` находятся `id`, `grid` и `url`.
+Обработчики кликов лучше вешать делегированием на `document`: тогда их не нужно привязывать заново.
 
-## Правила запросов
+## Подтверждение
 
-- Одинаковый незавершённый запрос отправляется один раз.
-- Таблица принимает только отмеченный HTML-ответ со своим ID.
-- При ошибке страница открывается обычным способом.
-- Частичные ответы используют `private, no-store`.
-- Заголовок `Vary` отделяет страницу от фрагмента таблицы.
+Кнопка с `confirm` получает атрибут `data-grid-confirm` (имя меняется в `confirm_attribute`). Без своего обработчика JS пакета показывает `window.confirm`.
 
-Rate limit и права доступа по-прежнему настраиваются на сервере.
+## Настройки
+
+| Ключ | По умолчанию | Назначение |
+|---|---|---|
+| `ajax` | `true` | AJAX для всех гридов; `'ajax' => false` в конкретном гриде |
+| `partial_header` | `X-Grid-View` | заголовок запроса фрагмента |

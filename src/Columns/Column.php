@@ -2,158 +2,74 @@
 
 namespace Artlosk\LaravelGridView\Columns;
 
-use Closure;
-use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\HtmlString;
 use Artlosk\LaravelGridView\GridView;
 use Artlosk\LaravelGridView\Rows\ExpandedRow;
-use Artlosk\LaravelGridView\Support\EvaluatesClosures;
-use UnexpectedValueException;
+use Closure;
+use Illuminate\Contracts\Support\Htmlable;
+use InvalidArgumentException;
 
-class Column
+/**
+ * A column of GridView, configured with an array like in Yii2:
+ * ['label' => ..., 'visible' => ..., 'headerOptions' => [...], 'contentOptions' => [...] or fn ($model, $row) => [...]].
+ */
+abstract class Column
 {
-    use EvaluatesClosures;
-
-    protected string|Closure|null $label = null;
+    protected ?string $label = null;
 
     protected bool|Closure $visible = true;
 
-    protected bool $sortable = false;
+    /** @var array<string, mixed> */
+    protected array $headerOptions = [];
 
-    protected string|Closure|null $sort = null;
+    /** @var array<string, mixed>|Closure(mixed, ExpandedRow): array<string, mixed> */
+    protected array|Closure $contentOptions = [];
 
-    protected ?Closure $renderer = null;
-
-    protected string|Closure|null $cellClass = null;
-
-    protected string|Closure|null $headerClass = null;
-
-    protected bool $raw = false;
-
-    protected function __construct(protected string $key) {}
-
-    public static function make(string $key): static
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    public function __construct(array $config, protected GridView $grid, protected int $index)
     {
-        return new static($key);
-    }
+        foreach ($config as $key => $value) {
+            if (!in_array($key, $this->options(), true)) {
+                throw new InvalidArgumentException(sprintf('Unknown option [%s] of grid column %s.', $key, static::class));
+            }
 
-    public function key(): string
-    {
-        return $this->key;
-    }
-
-    public function label(string|Closure $label): static
-    {
-        $this->label = $label;
-
-        return $this;
-    }
-
-    public function visible(bool|Closure $condition = true): static
-    {
-        $this->visible = $condition;
-
-        return $this;
-    }
-
-    public function isVisible(GridView $grid): bool
-    {
-        if ($this->evaluate($this->visible, $grid)) {
-            return true;
+            $this->{$key} = $value;
         }
-
-        return false;
     }
 
-    public function sortable(string|Closure|null $sort = null): static
-    {
-        $this->sortable = true;
-        $this->sort = $sort;
+    // Column key: the name of an ExpandedRow value and of an ExpandedGroup shared column
+    abstract public function key(): string;
 
-        return $this;
+    abstract public function cell(mixed $model, ExpandedRow $row, int $index): Htmlable;
+
+    abstract public function label(): string;
+
+    public function isVisible(): bool
+    {
+        return $this->visible instanceof Closure ? (bool) ($this->visible)() : $this->visible;
     }
 
     public function isSortable(): bool
     {
-        return $this->sortable;
+        return false;
     }
 
-    public function applySort(Builder $query, string $direction): void
+    /** @return array<string, mixed> */
+    public function headerAttributes(): array
     {
-        if ($this->sort instanceof Closure) {
-            ($this->sort)($query, $direction);
-
-            return;
-        }
-
-        $query->orderBy($this->sort ?? $this->key, $direction);
+        return $this->headerOptions;
     }
 
-    public function render(Closure $renderer, bool $raw = false): static
+    /** @return array<string, mixed> */
+    public function contentAttributes(mixed $model, ExpandedRow $row): array
     {
-        $this->renderer = $renderer;
-        $this->raw = $raw;
-
-        return $this;
+        return $this->contentOptions instanceof Closure ? ($this->contentOptions)($model, $row) : $this->contentOptions;
     }
 
-    public function raw(Closure $renderer): static
+    /** @return list<string> */
+    protected function options(): array
     {
-        return $this->render($renderer, true);
-    }
-
-    public function cellClass(string|Closure|null $class): static
-    {
-        $this->cellClass = $class;
-
-        return $this;
-    }
-
-    public function headerClass(string|Closure|null $class): static
-    {
-        $this->headerClass = $class;
-
-        return $this;
-    }
-
-    public function getLabel(GridView $grid): string
-    {
-        $label = $this->evaluate($this->label, $grid) ?? $this->key;
-
-        if (!is_string($label)) {
-            throw new UnexpectedValueException("Column [{$this->key}] label must be a string.");
-        }
-
-        return $label;
-    }
-
-    public function getCellClass(object $record, ExpandedRow $row): ?string
-    {
-        return $this->evaluate($this->cellClass, $record, $row);
-    }
-
-    public function getHeaderClass(GridView $grid): ?string
-    {
-        return $this->evaluate($this->headerClass, $grid);
-    }
-
-    public function getValue(object $record, ExpandedRow $row): mixed
-    {
-        if ($row->has($this->key)) {
-            $value = $row->get($this->key);
-        } else {
-            $value = data_get($record, $this->key);
-        }
-
-        if ($this->renderer) {
-            $value = ($this->renderer)($value, $record, $row);
-        }
-
-        if ($value instanceof Htmlable) {
-            return $value;
-        }
-
-        return $this->raw ? new HtmlString((string) $value) : $value;
+        return ['label', 'visible', 'headerOptions', 'contentOptions'];
     }
 }

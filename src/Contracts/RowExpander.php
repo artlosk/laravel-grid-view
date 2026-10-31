@@ -6,5 +6,5 @@ use Artlosk\LaravelGridView\Rows\ExpandedGroup;
 
 interface RowExpander
 {
-    public function expand(object $record): ExpandedGroup;
+    public function expand(mixed $record): ExpandedGroup;
 }

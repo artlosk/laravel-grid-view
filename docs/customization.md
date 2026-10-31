@@ -1,26 +1,59 @@
-# Appearance
+# Look and feel
 
 [Русская версия](customization.ru.md)
 
-The package has a small default theme. All selectors start with `lgv-`.
+## Classes
 
-## Use Bootstrap
+Markup classes live in `config/grid-view.php`:
 
 ```php
-$grid
-    ->gridClass('users-grid')
-    ->tableWrapperClass('table-responsive')
-    ->tableClass('table table-striped table-hover')
-    ->paginationView('pagination::bootstrap-5')
-    ->paginationWrapperClass('d-flex justify-content-end');
+'grid_class' => 'lgv-grid',
+'filters_class' => 'lgv-filters',           // the filter form
+'filter_field_class' => 'lgv-filter',       // field wrapper; per filter: ->fieldClass('col-md-4')
+'filter_actions_class' => 'lgv-filter-actions',
+'apply_button_class' => 'lgv-button lgv-button-primary',
+'reset_button_class' => 'lgv-button',
+'table_container_class' => 'lgv-table-container',
+'caption_class' => 'lgv-caption',
+'table_wrapper_class' => 'lgv-table-wrap',
+'table_class' => 'lgv-table',
+'pagination_view' => 'grid-view::pagination',
+'pagination_wrapper_class' => 'lgv-pagination-wrap',
+'link_attributes' => [],                    // attributes of links of columns with 'url'
+'reorder_handle_class' => 'lgv-reorder-handle',
+'reorder_icon' => null,                     // e.g. 'fas fa-grip-vertical' instead of the ⠿ glyph
 ```
 
-When `tableClass()` does not contain `lgv-table`, the default table spacing, borders, and alignment are not applied.
+Bootstrap example:
 
-## Change colors
+```php
+'filters_class' => 'row align-items-end mb-3',
+'filter_field_class' => 'col-md-3',
+'table_wrapper_class' => 'table-responsive',
+'table_class' => 'table table-hover',
+'pagination_view' => 'pagination::bootstrap-5',
+```
+
+## Action buttons
+
+```php
+'action_template' => '{view} {update} {delete}',
+'action_column_class' => 'lgv-actions',
+'confirm_attribute' => 'data-grid-confirm',
+'action_buttons' => [
+    'view' => ['route' => 'show', 'icon' => 'fas fa-eye', 'attributes' => ['class' => 'btn btn-sm']],
+    'update' => ['route' => 'edit', 'icon' => 'fas fa-pen'],
+    'delete' => ['route' => 'destroy', 'method' => 'DELETE', 'icon' => 'fas fa-trash', 'confirm' => true],
+    'restore' => ['route' => 'restore', 'method' => 'POST', 'icon' => 'fas fa-undo', 'label' => 'Restore'],
+],
+```
+
+Without `icon` a button shows its label. `confirm: true` uses the default question; a string is your own text.
+
+## Default theme colors
 
 ```css
-.users-grid {
+.lgv-grid {
     --lgv-border: #dee2e6;
     --lgv-muted: #6c757d;
     --lgv-surface: transparent;
@@ -28,14 +61,27 @@ When `tableClass()` does not contain `lgv-table`, the default table spacing, bor
 }
 ```
 
-## Publish files
+## Views
 
 ```bash
 php artisan vendor:publish --tag=grid-view-views
-php artisan vendor:publish --tag=grid-view-translations
-php artisan vendor:publish --tag=grid-view-assets
 ```
 
-Use `--force` after an update only if replacing your published copies is safe.
+You can override:
+- `grid.blade.php` — the whole grid;
+- `filters.blade.php` — the filter form;
+- `filters/{text,select,date}.blade.php` — the fields;
+- `actions/{link,form}.blade.php` — the buttons;
+- `pagination.blade.php`.
 
-Buttons receive classes through `Action::attributes()`. Form wrappers use `Action::formAttributes()`.
+Usually the config and the field views are enough.
+
+## Own column type
+
+```php
+use Artlosk\LaravelGridView\Columns\DataColumn;
+
+class MoneyColumn extends DataColumn { /* ... */ }
+
+// ['class' => MoneyColumn::class, 'attribute' => 'amount']
+```

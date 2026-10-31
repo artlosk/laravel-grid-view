@@ -2,82 +2,58 @@
 
 [Русская версия](ajax.ru.md)
 
-AJAX is optional. Sorting and pagination still work as normal links without JavaScript.
+With `ajax => true` (default) sorting, pagination and the filter form redraw only the grid.
+
+## How it works
+
+1. The package script intercepts clicks on headers, pagination and "Reset", and the filter form submit.
+2. It requests the same URL with the `X-Grid-View: <grid id>` header.
+3. The page renders as usual; the `PartialGridResponse` middleware (added to the `web` group by the package) takes the grid with that id and answers with its HTML only.
+4. The script replaces the grid, updates the browser URL (`history.pushState`) and dispatches `grid-view:rendered` with `detail: { id, grid, url }`.
+
+Controllers do nothing special: they return a regular view.
+
+If a response has no such grid (a redirect, an error, another page), the browser simply navigates to the URL. "Back" redraws grids on `popstate`.
 
 ## Setup
 
-```php
-$grid->ajax();
-```
-
 ```blade
-<link rel="stylesheet" href="{{ asset('vendor/grid-view/grid-view.css') }}">
 <script src="{{ asset('vendor/grid-view/grid-view.js') }}" defer></script>
 ```
 
-Return the requested grid from the controller:
+or with Vite: `import '…/vendor/artlosk/laravel-grid-view/resources/js/grid-view.js'`.
 
-```php
-if (GridRequest::wantsPartial($request)) {
-    return $grid->partialResponse();
-}
-```
+## External filter form
 
-## Filters
+A form outside the grid (e.g. shared by several pages) is linked with an attribute:
 
 ```blade
-<form method="GET" data-grid-view-filter="users-grid">
-    <input name="search" value="{{ request('search') }}">
-    <button type="submit">Search</button>
+<form method="GET" action="{{ route('orders.index') }}" data-grid-view-filter="orders-grid">
+    …
 </form>
+
+@grid(['id' => 'orders-grid', 'dataProvider' => $provider, 'showFilters' => false, 'columns' => [...]])
 ```
 
-The form must use GET and point to an AJAX grid ID. If the form does not send the sort and direction parameters, the current sort from the URL is kept.
+The current sorting is kept on submit.
 
-## Several grids
+## Re-initialization
 
-Give every grid its own ID and query parameters:
-
-```php
-$usersGrid
-    ->sortParameters('users_sort', 'users_direction')
-    ->paginate(20, 'users_page');
-
-$ordersGrid
-    ->sortParameters('orders_sort', 'orders_direction')
-    ->paginate(20, 'orders_page');
-```
-
-Return the grid named in the request:
-
-```php
-if (GridRequest::targetsGrid($request, $usersGrid->id())) {
-    return $usersGrid->partialResponse();
-}
-
-if (GridRequest::targetsGrid($request, $ordersGrid->id())) {
-    return $ordersGrid->partialResponse();
-}
-```
-
-## After an update
-
-The script emits `grid-view:rendered`:
+Bring new elements (e.g. select plugins) to life in one place:
 
 ```js
-document.addEventListener('grid-view:rendered', (event) => {
-    initRowButtons(event.detail.grid);
-});
+document.addEventListener('grid-view:rendered', (event) => initPlugins(event.detail.grid));
 ```
 
-`event.detail` contains `id`, `grid`, and `url`.
+Prefer delegated click handlers on `document`: they never need rebinding.
 
-## Request rules
+## Confirmation
 
-- Repeated pending URLs are sent once.
-- A grid accepts only a marked HTML response with its own ID.
-- A bad response opens the page normally.
-- Partial responses use `private, no-store`.
-- `Vary` separates full pages from table fragments.
+A button with `confirm` gets `data-grid-confirm` (rename it with `confirm_attribute`). Without your own handler the package script shows `window.confirm`.
 
-Rate limits and permissions still belong on the server.
+## Settings
+
+| Key | Default | Purpose |
+|---|---|---|
+| `ajax` | `true` | AJAX for all grids; `'ajax' => false` per grid |
+| `partial_header` | `X-Grid-View` | header of the fragment request |
