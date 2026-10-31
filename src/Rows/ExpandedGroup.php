@@ -61,7 +61,7 @@ class ExpandedGroup
 
     public static function single(?string $class = null): self
     {
-        return new self([new ExpandedRow()], class: $class);
+        return new self([new ExpandedRow], class: $class);
     }
 
     public function rowCount(): int

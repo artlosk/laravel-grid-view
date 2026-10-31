@@ -2,10 +2,10 @@
 
 namespace Artlosk\LaravelGridView\Tests\Unit;
 
-use InvalidArgumentException;
 use Artlosk\LaravelGridView\Rows\ExpandedGroup;
 use Artlosk\LaravelGridView\Rows\ExpandedRow;
 use Artlosk\LaravelGridView\Tests\TestCase;
+use InvalidArgumentException;
 
 class ExpandedRowsTest extends TestCase
 {

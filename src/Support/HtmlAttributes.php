@@ -2,6 +2,7 @@
 
 namespace Artlosk\LaravelGridView\Support;
 
+use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 use Stringable;
 
@@ -48,5 +49,46 @@ class HtmlAttributes
         }
 
         return $escaped;
+    }
+
+    /**
+     * Attributes as HTML: ` name="value"`, `true` renders a bare name, `false` and `null` are skipped.
+     *
+     * @param  array<array-key, mixed>  $attributes
+     */
+    public static function render(array $attributes): HtmlString
+    {
+        $html = '';
+
+        foreach (self::escaped($attributes) as $name => $value) {
+            if ($value === null || $value === false) {
+                continue;
+            }
+
+            $html .= $value === true ? " {$name}" : " {$name}=\"{$value}\"";
+        }
+
+        return new HtmlString($html);
+    }
+
+    /**
+     * Merges attributes; CSS classes are joined, other values are replaced.
+     *
+     * @param  array<string, mixed>  ...$sets
+     * @return array<string, mixed>
+     */
+    public static function merge(array ...$sets): array
+    {
+        $result = [];
+
+        foreach ($sets as $set) {
+            foreach ($set as $name => $value) {
+                $result[$name] = $name === 'class' && isset($result['class']) && is_string($value)
+                    ? trim($result['class'].' '.$value)
+                    : $value;
+            }
+        }
+
+        return $result;
     }
 }

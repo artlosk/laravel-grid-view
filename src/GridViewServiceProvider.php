@@ -2,6 +2,9 @@
 
 namespace Artlosk\LaravelGridView;
 
+use Artlosk\LaravelGridView\Http\PartialGridResponse;
+use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 
 class GridViewServiceProvider extends ServiceProvider
@@ -10,6 +13,16 @@ class GridViewServiceProvider extends ServiceProvider
     {
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'grid-view');
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'grid-view');
+
+        // @grid([...]) — the same as {!! GridView::widget([...]) !!}
+        Blade::directive('grid', static fn (string $expression): string => '<?php echo \\'.GridView::class."::widget({$expression})->toHtml(); ?>");
+
+        // through the HTTP kernel: it syncs its groups to the router and would drop a router-only change
+        $kernel = $this->app->make(Kernel::class);
+
+        if (config('grid-view.ajax', true) && method_exists($kernel, 'appendMiddlewareToGroup')) {
+            $kernel->appendMiddlewareToGroup('web', PartialGridResponse::class);
+        }
 
         $this->publishes([
             __DIR__.'/../config/grid-view.php' => config_path('grid-view.php'),

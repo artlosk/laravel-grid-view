@@ -1,6 +1,6 @@
 {
     "name": "artlosk/laravel-grid-view",
-    "description": "Server-rendered Laravel GridView with sortable columns, row actions, grouped rows and optional AJAX navigation.",
+    "description": "Yii2-style GridView for Laravel: data providers, filters, formatters, action columns, grouped rows and AJAX without controller code.",
     "type": "library",
     "license": "MIT",
     "homepage": "https://github.com/artlosk/laravel-grid-view",

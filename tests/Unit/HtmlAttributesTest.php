@@ -2,9 +2,9 @@
 
 namespace Artlosk\LaravelGridView\Tests\Unit;
 
-use InvalidArgumentException;
 use Artlosk\LaravelGridView\Support\HtmlAttributes;
 use Artlosk\LaravelGridView\Tests\TestCase;
+use InvalidArgumentException;
 
 class HtmlAttributesTest extends TestCase
 {
@@ -47,5 +47,12 @@ class HtmlAttributesTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         HtmlAttributes::escaped(['onmouseover' => 'alert(1)']);
+    }
+
+    public function test_it_renders_and_merges_attributes(): void
+    {
+        $attributes = HtmlAttributes::merge(['class' => 'a', 'title' => 'x'], ['class' => 'b', 'title' => '"y"', 'hidden' => true, 'skip' => null]);
+
+        $this->assertSame(' class="a b" title="&quot;y&quot;" hidden', HtmlAttributes::render($attributes)->toHtml());
     }
 }
