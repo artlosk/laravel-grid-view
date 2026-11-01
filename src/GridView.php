@@ -225,7 +225,7 @@ class GridView implements Htmlable
      */
     public function isReorderable(): bool
     {
-        if ($this->reorder === null || $this->records()->hasPages()) {
+        if ($this->reorder === null || $this->records()->hasPages() || $this->dataProvider->filters()->active()) {
             return false;
         }
 

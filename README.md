@@ -234,7 +234,7 @@ Records can be dragged into a custom order, like categories in a menu:
 
 A handle is added as the first column (`['class' => 'reorder']` puts it elsewhere). Records move with a mouse, a finger or ↑ ↓ on a focused handle. After every move the script sends `{"ids": [...]}` with the `X-CSRF-TOKEN` from `<meta name="csrf-token">`; your route saves the order. Requests go one at a time; if one fails the grid is redrawn with the saved order and `grid-view:reorder-failed` is dispatched (`grid-view:reordered` on success).
 
-Dragging is off while the grid shows more than one page: every record has to be on the page.
+Dragging is off while the grid shows more than one page or a filter is applied: every record has to be on the page.
 
 ## Grouped rows
 
