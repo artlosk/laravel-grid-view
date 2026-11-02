@@ -326,9 +326,9 @@
                 Math.max(startTop + pointerY - startY + window.scrollY - startScroll, first.offsetTop),
                 last.offsetTop + last.offsetHeight - record.offsetHeight
             );
-            var middle = top + record.offsetHeight / 2;
+            var edge = top < record.offsetTop ? top : top + record.offsetHeight;
             var before = list.find(function (element) {
-                return element !== record && element.offsetTop + element.offsetHeight / 2 > middle;
+                return element !== record && element.offsetTop + element.offsetHeight / 2 > edge;
             }) || null;
 
             if (before !== nextRecord(record)) {
