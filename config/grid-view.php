@@ -25,6 +25,7 @@ return [
     'filter_actions_class' => 'lgv-filter-actions',
     'apply_button_class' => 'lgv-button lgv-button-primary',
     'reset_button_class' => 'lgv-button',
+    'toolbar_class' => 'lgv-toolbar',
     'table_container_class' => 'lgv-table-container',
     'caption_class' => 'lgv-caption',
     'table_wrapper_class' => 'lgv-table-wrap',

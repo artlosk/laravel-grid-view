@@ -36,3 +36,7 @@
         @endif
     </div>
 </form>
+
+@if ($grid->toolbar() !== null)
+    <div class="{{ config('grid-view.toolbar_class') }}">{{ $grid->toolbar() }}</div>
+@endif

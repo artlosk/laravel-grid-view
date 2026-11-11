@@ -23,8 +23,11 @@
         data-grid-view-reorder-method="{{ $grid->reorderMethod() }}"
     @endif
 >
+    {{-- the filters view draws the toolbar, so an overridden one can put it on the same line as its own controls --}}
     @if ($grid->filters() !== [])
         @include('grid-view::filters', ['grid' => $grid])
+    @elseif ($grid->toolbar() !== null)
+        <div class="{{ config('grid-view.toolbar_class') }}">{{ $grid->toolbar() }}</div>
     @endif
 
     <div class="{{ config('grid-view.table_container_class') }}">

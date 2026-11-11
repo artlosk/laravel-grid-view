@@ -39,6 +39,15 @@
     gap: 0.5rem;
 }
 
+.lgv-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+}
+
 .lgv-button {
     display: inline-flex;
     align-items: center;
