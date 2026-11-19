@@ -48,6 +48,10 @@
     margin-bottom: 1rem;
 }
 
+.lgv-before-table {
+    margin-bottom: 1rem;
+}
+
 .lgv-button {
     display: inline-flex;
     align-items: center;

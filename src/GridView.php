@@ -34,7 +34,7 @@ use InvalidArgumentException;
  *         ],
  *     ])
  *
- * Options: dataProvider, columns, id, caption, toolbar, emptyText, showFilters, ajax, rowExpander, rowClass, reorder.
+ * Options: dataProvider, columns, id, caption, toolbar, beforeTable, emptyText, showFilters, ajax, rowExpander, rowClass, reorder.
  */
 class GridView implements Htmlable
 {
@@ -65,6 +65,8 @@ class GridView implements Htmlable
     protected string|Htmlable|null $caption = null;
 
     protected string|Htmlable|null $toolbar = null;
+
+    protected string|Htmlable|null $beforeTable = null;
 
     protected ?string $emptyText = null;
 
@@ -101,7 +103,7 @@ class GridView implements Htmlable
         }
 
         foreach (Arr::except($config, ['dataProvider', 'id', 'ajax', 'columns', 'reorder']) as $option => $value) {
-            if (!in_array($option, ['caption', 'toolbar', 'emptyText', 'showFilters', 'rowExpander', 'rowClass'], true)) {
+            if (!in_array($option, ['caption', 'toolbar', 'beforeTable', 'emptyText', 'showFilters', 'rowExpander', 'rowClass'], true)) {
                 throw new InvalidArgumentException("Unknown GridView option [{$option}].");
             }
 
@@ -266,6 +268,12 @@ class GridView implements Htmlable
     public function toolbar(): string|Htmlable|null
     {
         return is_string($this->toolbar) ? self::label($this->toolbar) : $this->toolbar;
+    }
+
+    // Totals or charts right before the table container; rebuilt for every request, AJAX ones included, like the toolbar
+    public function beforeTable(): string|Htmlable|null
+    {
+        return is_string($this->beforeTable) ? self::label($this->beforeTable) : $this->beforeTable;
     }
 
     public function emptyText(): string

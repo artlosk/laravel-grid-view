@@ -14,6 +14,7 @@ Markup classes live in `config/grid-view.php`:
 'apply_button_class' => 'lgv-button lgv-button-primary',
 'reset_button_class' => 'lgv-button',
 'toolbar_class' => 'lgv-toolbar',           // the toolbar option
+'before_table_class' => 'lgv-before-table', // the beforeTable option
 'table_container_class' => 'lgv-table-container',
 'caption_class' => 'lgv-caption',
 'table_wrapper_class' => 'lgv-table-wrap',
@@ -69,7 +70,7 @@ php artisan vendor:publish --tag=grid-view-views
 ```
 
 You can override:
-- `grid.blade.php` — the whole grid;
+- `grid.blade.php` — the whole grid and the `beforeTable` block;
 - `filters.blade.php` — the filter form and the toolbar;
 - `filters/{text,select,date}.blade.php` — the fields;
 - `actions/{link,form}.blade.php` — the buttons;

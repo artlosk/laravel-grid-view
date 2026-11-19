@@ -205,6 +205,7 @@ A button is the preset from `grid-view.action_buttons` merged with the column `b
     'id' => 'users-grid',          // stable id for AJAX, grid0, grid1… by default
     'caption' => 'Users',          // heading above the table: a string or an Htmlable
     'toolbar' => view('users._export'), // buttons and forms next to the filters
+    'beforeTable' => view('users._totals'), // totals or a chart right before the table
     'emptyText' => 'No users yet',
     'showFilters' => false,        // no filter form
     'ajax' => false,               // plain links instead of AJAX
@@ -214,9 +215,11 @@ A button is the preset from `grid-view.action_buttons` merged with the column `b
 ])
 ```
 
-A misspelled option throws right away. Create a `view(...)` caption or toolbar inside `@grid`: a `View` passed to another view as data is rendered to a string by Laravel first, and a string is escaped.
+A misspelled option throws right away. Create a `view(...)` caption, toolbar or `beforeTable` inside `@grid`: a `View` passed to another view as data is rendered to a string by Laravel first, and a string is escaped.
 
 The toolbar is part of the grid: after AJAX filtering, sorting or paging it is rendered again for the new request. So an export form there can carry the applied filters and sort in hidden fields. The filter view draws it under the filter form (an overridden `filters.blade.php` can put it on one line with its own controls); a grid without filters shows it in a row above the table. A `filters.blade.php` published before the option existed does not draw it: add `{{ $grid->toolbar() }}` there.
+
+`beforeTable` is rebuilt the same way, so totals for the applied filters stay in step with the rows. The grid draws it right before the table container: under the filter form by default, above it when an overridden `grid.blade.php` keeps the filters inside the container. A `grid.blade.php` published before the option existed does not draw it: add `{{ $grid->beforeTable() }}` above the table container.
 
 ## Reordering rows
 

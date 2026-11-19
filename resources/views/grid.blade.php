@@ -30,6 +30,10 @@
         <div class="{{ config('grid-view.toolbar_class') }}">{{ $grid->toolbar() }}</div>
     @endif
 
+    @if ($grid->beforeTable() !== null)
+        <div class="{{ config('grid-view.before_table_class') }}">{{ $grid->beforeTable() }}</div>
+    @endif
+
     <div class="{{ config('grid-view.table_container_class') }}">
         @if ($grid->caption() !== null)
             <div class="{{ config('grid-view.caption_class') }}">{{ $grid->caption() }}</div>

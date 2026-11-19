@@ -26,6 +26,7 @@ return [
     'apply_button_class' => 'lgv-button lgv-button-primary',
     'reset_button_class' => 'lgv-button',
     'toolbar_class' => 'lgv-toolbar',
+    'before_table_class' => 'lgv-before-table',
     'table_container_class' => 'lgv-table-container',
     'caption_class' => 'lgv-caption',
     'table_wrapper_class' => 'lgv-table-wrap',

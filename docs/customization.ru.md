@@ -14,6 +14,7 @@
 'apply_button_class' => 'lgv-button lgv-button-primary',
 'reset_button_class' => 'lgv-button',
 'toolbar_class' => 'lgv-toolbar',           // опция toolbar
+'before_table_class' => 'lgv-before-table', // опция beforeTable
 'table_container_class' => 'lgv-table-container',
 'caption_class' => 'lgv-caption',
 'table_wrapper_class' => 'lgv-table-wrap',
@@ -69,7 +70,7 @@ php artisan vendor:publish --tag=grid-view-views
 ```
 
 Можно переопределить:
-- `grid.blade.php` — грид целиком;
+- `grid.blade.php` — грид целиком и блок `beforeTable`;
 - `filters.blade.php` — форма фильтров и панель `toolbar`;
 - `filters/{text,select,date}.blade.php` — поля;
 - `actions/{link,form}.blade.php` — кнопки;
